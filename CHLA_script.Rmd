@@ -1,0 +1,1059 @@
+---
+title: "Modelling Estuarine CHLa in the Upper Reaches of the Lower James"
+subtitle: "James River Station JMS75 (Rice River Center), 2010-2023"
+editor_options: 
+  chunk_output_type: console
+output: 
+  html_document:
+    toc: TRUE
+    toc_depth: 4
+    toc_float: true
+---
+
+```{r setup, include = FALSE, echo = FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = FALSE, include = FALSE, message = FALSE, warning = FALSE)
+
+# Connect to 'functions.R' file so code can interact with custom functions. The file should be contained in the working directory, along with this .rmd file.
+if (file.exists("functions.R")) {
+  source("functions.R")
+} else {
+  stop("The 'functions.R' file is missing from the working directory. Call `getwd()` to check path of current working directory.")
+}
+
+# Install any missing packages
+install_packages <- function(packages) {
+  new_packages <- packages[!(packages %in% installed.packages()[,"Package"])]
+  if(length(new_packages) > 0) {
+    install.packages(new_packages, dependencies = TRUE)
+  }
+}
+
+packages <- c("tidyverse", "ggplot2", "openxlsx", "kableExtra",  "zoo")
+install_packages(packages)
+
+library(ggplot2)
+library(tidyverse)
+library(kableExtra)
+
+```
+
+<br>
+
+```{r `read data`}
+# Read in Excel file and prepare data for analysis
+excel_file <- "CHLa_data.xlsx"  # <--- change as needed depending on your Excel workbook file name
+
+  
+  # Define the two source dataframes
+  # 1 df.james
+  df.james <- openxlsx::read.xlsx(excel_file, sheet = 2)
+        
+      # Convert `date` column from Excel encoded date to a more legible date format. Otherwise date shows as numeric value, e.g. '44230'.
+      df.james$date <- df.james$date * 86400      # 86400 = seconds in a day.
+      df.james$date <- as.POSIXct(df.james$date, origin = "1899-12-30", tz = "UTC")
+        
+  # 2 df.discharge
+  df.discharge <- openxlsx::read.xlsx(excel_file, sheet = 3)
+  
+  # Define column names 
+    colnames(df.james)[3:5] <- c("SurfaceTemp", "CHLa", "DIN")
+                       
+    colnames(df.discharge) <- as.character(colnames(df.discharge))
+    
+    
+  # Define and set dynamic variables for use in e.g, for loops.
+    yr_range <-range(df.james$date)
+    min_yr <- substr(yr_range[1], 1, 4)
+    max_yr <- substr(yr_range[2], 1, 4)
+     
+    years_vec <- c(min_yr:max_yr)
+    
+                print(yr_range)
+                print(min_yr)
+                print(max_yr)
+                print(years_vec)
+
+```
+
+```{r `preprocess data`}
+  # Set and populate new fields for ln(CHLa),discharge, and day of year (1-365) 
+  df.james <- 
+    df.james %>% 
+      mutate(ln_chla = log(df.james$CHLa),
+             Discharge = as.numeric(NA),
+             yday = yday(date) # `yday()` function returns day of year for a given date. )
+             )
+  
+  # Add discharge values 
+  for (i in years_vec) {
+    ## subset DOYs by year and assign to variable
+    DOY_vec <- df.james$yday[year(df.james$date) == i]
+  
+    ## Add discharge values to data frame
+    df.james$Discharge[year(df.james$date) == i] <- df.discharge[DOY_vec, as.character(i)]
+}
+  
+  
+  # Create factor for differentiating data points before and after 2018
+  df.james$period <- NA
+  
+    for (i in seq_along(df.james$date)) {
+      df.james$period[i] <- ifelse(
+        year(df.james$date[i]) %in% c(2010:2018), 
+        "2010-2018", 
+        paste0("2019-", as.character(max_yr)))
+    }
+
+
+```
+
+## CHLa and DIN Time Series Plots
+
+```{r `CHLa time series plot`, fig.width=10.5, fig.height=4.5, warning=FALSE, include = TRUE}
+
+# Generate plot using ggplot package 
+  suppressWarnings(
+    ggplot(data = df.james) +
+    geom_point(aes(x = date, y = CHLa,
+                   color = CHLa) ) +
+    geom_line(aes(x = date, y = CHLa,
+                   color = CHLa) ) +
+    geom_hline(yintercept = 40, linetype = "dashed", color = "gray") +
+    labs(title = NULL, # or set title with quoted character string 
+         y = paste0("Total CHLa (\u03BCg/L)"),
+         x = "Date",
+         ) +
+    scale_y_continuous(breaks = seq(0, max(df.james$CHLa, na.rm = TRUE), by = 20)) +
+    theme_classic() +
+    theme(legend.position = "none",
+                legend.text = element_text(size = 10),
+                plot.title = element_text(size = 12),
+                axis.text.x = element_text(angle = 45, hjust = 1, size = 11),
+                axis.text.y = element_text(size = 11),
+                axis.line = element_line(color = "grey"),
+                axis.title.x = element_text(size = 15, color = "grey20", margin = margin(t = 15)),
+                axis.title.y = element_text(size = 15, color = "grey20", margin = margin(r = 15))) +
+    scale_x_datetime(date_labels = "%Y", date_breaks = "1 years",
+                     limits = c(as.POSIXct(paste0(min_yr, "-01-01")), as.POSIXct(paste0(max_yr,"-12-31"))
+                                ) ) +
+   scale_color_viridis_c(option = "D", direction = 1)  # Set color palette
+   )
+
+# Save plot to working directory
+ggsave(filename = "output/CHLa_timeseries.jpeg", device = "jpeg", dpi = 300)
+
+```
+
+<br>
+
+```{r `DIN time series plot`, fig.width=10.5, fig.height=4.5, include = TRUE, warning=FALSE}
+
+  suppressWarnings(
+    ggplot(data = df.james) +
+    geom_point(aes(x = date, y = DIN,
+                   color = DIN), alpha = .8 ) +
+    geom_line(aes(x = date, y = DIN,
+                   color = DIN) ) +
+    labs(title = NULL, # or set title with quoted character string 
+         y = "Total DIN (mg/L)",
+         x = "Date",
+         color = "Year") +
+    scale_y_continuous(breaks = seq(0, max(df.james$DIN, na.rm = TRUE), by = .25)) +
+    theme_classic() +
+    theme(legend.position = "none",
+                legend.text = element_text(size = 10),
+                plot.title = element_text(size = 12),
+                axis.text.x = element_text(angle = 45, hjust = 1, size = 11),
+                axis.text.y = element_text(size = 11),
+                axis.line = element_line(color = "grey"),
+                axis.title.x = element_text(size = 14, color = "grey20", margin = margin(t = 15)),
+                axis.title.y = element_text(size = 14, color = "grey20", margin = margin(r = 15))) +
+    scale_x_datetime(date_labels = "%Y", date_breaks = "1 years",
+                     limits = c(as.POSIXct(paste0(min_yr, "-01-01")), as.POSIXct(paste0(max_yr,"-12-31"))
+                                ) ) +
+   scale_color_gradient(low = "#40798C", high = "grey20")  # manually set the two ends of the color ramp
+  )
+
+```
+
+<br><br>
+
+## Summary Statistics by Year
+
+```{r `summary statistics/mean vals`}
+ 
+  mean_vals <- data.frame(Year = years_vec)
+  jul1_yday <- yday("2013-07-01")
+  oct31_yday <- yday("2023-10-31")
+  
+  # Calculate mean discharge by year, Jul-Oct (all dates)  
+    for (i in 2:ncol(df.discharge)) {
+      mean_vals$Discharge[i-1] <- 
+        round(mean(df.discharge[jul1_yday:oct31_yday, i], na.rm=T), 2)
+    }
+  
+        
+  # Calculate mean discharge by year based only on CHLa sampling days during Jul-Oct.
+     df.samplingDays <- 
+          data.frame(
+            DOY = yday(df.james$date[yday(df.james$date) >= jul1_yday & 
+                                          yday( df.james$date) < oct31_yday] ),
+            year = year(df.james$date)[yday(df.james$date) >= jul1_yday & 
+                                          yday( df.james$date) < oct31_yday]
+          ) 
+        
+        for (i in (min(years_vec):max(years_vec)) ) {
+              df.samplingDays$discharge[df.samplingDays$year == i] <-
+                df.discharge[
+                  df.samplingDays$DOY[df.samplingDays$year == i], as.character(i)]
+          }
+        
+        for (i in 2:ncol(df.discharge)) {
+              doy <- 
+                df.samplingDays$DOY[df.samplingDays$year == 
+                                      as.numeric(colnames(df.discharge)[i])]
+              
+              mean_vals$Discharge_sampling[i-1] <- 
+                round(
+                  mean(df.discharge[doy, i], na.rm = TRUE), 2)
+  }
+
+     
+  # Calculate mean for variables with weekly observation data
+  for (col in c("SurfaceTemp", "CHLa", "DIN", "SpCond") ) {
+    means <- df.james %>%
+        group_by(year = lubridate::year(date) ) %>%
+        filter(month(date) %in% c(7:10) ) %>%
+        summarize(mean_value = mean(!!sym(col), na.rm = TRUE) )
+    
+    mean_vals[, col] <- round(means$mean_value, 2)
+  }
+
+      
+  # Peak CHLa (90%-tile) by year
+    percentile_90 <- 
+      df.james %>%
+      group_by(year(date)) %>%
+      summarize(CHLa_90th = round(quantile(CHLa, probs = .90, na.rm = TRUE), 2) )
+  
+
+    
+summary_stats <- mean_vals %>%
+  left_join(percentile_90, by = join_by("Year" == "year(date)"))
+
+print(head(summary_stats))
+
+```
+
+```{r `table: Summary stats`, include = TRUE}
+
+# Add superscripts to column names to correspond to footnotes specififying units 
+    ## discharge
+    colnames(summary_stats)[2] <- paste0(colnames(summary_stats)[2],
+                                         footnote_marker_alphabet(1) )    
+    ## surface temp
+    colnames(summary_stats)[4] <- paste0(colnames(summary_stats)[4],
+                                         footnote_marker_alphabet(2) )
+    ## CHLa
+    colnames(summary_stats)[5] <- paste0(colnames(summary_stats)[5],
+                                         footnote_marker_alphabet(3) )
+    ## DIN
+    colnames(summary_stats)[6] <- paste0(colnames(summary_stats)[6],
+                                         footnote_marker_alphabet(4) )
+    ## specific conductance 
+    colnames(summary_stats)[7] <- paste0(colnames(summary_stats)[7],
+                                         footnote_marker_alphabet(5) )
+
+# Define footnote content. 'Regular expressions' are used to achieve special characters, like the mu or the superscript '3' for cubic meters.
+  
+  fn.discharge <- "m\u00B3/s"
+    
+  fn.temp <- "Celsius"
+  
+  fn.chla <- "\u03BCg/L"
+  
+  fn.din <- "mg/L"
+  
+  fn.spcond <- "\u03BCS/cm"
+  
+
+# Print `summary_stats` dataframe as a kable table
+summary_stats %>%
+  kable(align = "c", 
+        caption = "James River Station JMS75 Mean Water Quality Values, by Year <br> 
+        Means based on values observed during July-October index period",
+        escape = FALSE,
+        padding = 3) %>% # 'escape' argument necessary for <sup></sup> markup to render the superscripts properly in the column names
+  kable_paper() %>%
+  # This next section sets what appears in the footnotes using the variables defined above. 
+  footnote(alphabet = c(fn.discharge,
+                        fn.temp, 
+                        fn.chla, 
+                        fn.din, 
+                        fn.spcond)) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed") )
+
+
+```
+
+```{r `derive bloom, N-dep, and low flow counts`}
+
+bloom_days <- 
+  df.james %>%
+  filter(CHLa > 40 & month(date) %in% c(7:10) ) %>%
+  group_by(year(date) ) %>%
+  summarize(count = n() ) %>%
+  mutate("Bloom days" = count*7) %>% # readings are weekly, so multiply count by 7 to estimate totals
+  rename(Year = "year(date)") %>%
+  select(-count)
+
+
+n_depleted <- 
+  df.james %>%
+  filter(DIN < .07 & month(date) %in% c(7:10) ) %>%
+  group_by(year(date) ) %>%
+  summarize(count = n() ) %>%
+  mutate("N-depleted days" = count*7) %>%
+  rename(Year = "year(date)") %>%
+  select(-count)
+
+
+low_flow <- 
+  data.frame(Year = years_vec,
+             "Low flow days" = NA)
+
+    for (i in 2:15) {
+      low_flow[i-1, 2] <- 
+        length(
+          which(df.discharge[jul1_yday:oct31_yday, i] < 100 ) )
+    }
+      
+
+joined.df <- bloom_days %>%
+  left_join(n_depleted, by = join_by("Year")) %>%
+  left_join(low_flow, by = join_by("Year"))
+
+```
+
+<br><br>
+
+```{r `table: bloom, N-dep, and low flow`, include = TRUE}
+# Add superscripts to col names for unit specification
+    ## bloom days
+    colnames(joined.df)[2] <- paste0(colnames(joined.df)[2], footnote_marker_alphabet(1) )
+    
+    ## N-depleted days
+    colnames(joined.df)[3] <- paste0(colnames(joined.df)[3], footnote_marker_alphabet(2) )
+    
+    ## low flow days
+    colnames(joined.df)[4] <- paste0(colnames(joined.df)[4], footnote_marker_alphabet(3) )
+
+# Print table
+joined.df %>%
+  kable(align = "c", 
+        caption = paste0("Counts of Algal Bloom, N-Depleted, and Low Flow Days, Jul-Oct 2010-", max_yr), 
+        escape = FALSE,
+        padding = 3) %>%
+  kable_paper() %>%
+  footnote(alphabet = c("CHLa > 40 \u03BCg/L", 
+                        "DIN < .07 mg/L", 
+                        "discharge < 100 m\u00B3/s") ) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed") )
+
+```
+
+<br><br>
+
+## Model 1: CHLa \~ Temperature/Discharge Ratio
+
+```{r `derive T:Q _model1`}
+# Data wrangling for Model 1
+## Subset date, SurfaceTemp, CHLa 
+df.model1 <- 
+  df.james[, c("date", "SurfaceTemp", "CHLa", "ln_chla", "Discharge", "period")]
+
+## Derive T/Q ratio and ln(CHLa)
+df.model1 <-
+   df.model1 %>%
+    mutate(t_q = SurfaceTemp/Discharge)
+```
+
+<br>
+
+#### Regression Plots
+
+```{r `derive regression stats1_model1`}
+# Create dataframes to hold regression statistics
+
+### For individual yr stats
+ reg.stats <- 
+  data.frame(Model.Year =  years_vec,
+             coefficient = as.numeric(NA),
+             coef.error = as.numeric(NA),
+             p.val = as.numeric(NA),
+             RSQR = as.numeric(NA)
+             )
+### For all years combined
+reg.stats2 <- 
+  data.frame(Model.Year =  "All years",
+             coefficient = as.numeric(NA),
+             coef.error = as.numeric(NA),
+             p.val = as.numeric(NA),
+             RSQR = as.numeric(NA)
+             )
+
+
+
+# custom functions (see 'functions.R' file)
+reg.stats <- regstat_eachyear(reg.df = reg.stats, 
+                              data = df.model1, 
+                              x = "t_q") 
+
+reg.stats2 <- regstat_combined(reg.df = reg.stats2, 
+                               data = df.model1, 
+                               x = "t_q")
+
+
+# Bind together to create a single df 
+reg.stats <- rbind(reg.stats2, reg.stats)
+
+```
+
+<br>
+
+```{r `plot CHLa~T:Q regression_model1`, include = TRUE}
+# Plot of ln(CHLa) ~ T:Q for all years' data with best fit regression line. 
+# custom function (see 'functions.R' file)
+
+  plot_allYears(  
+    data = df.model1,
+    x = "t_q",
+    y = "ln_chla",
+    formula = y ~ log(x),
+    method = "lm",
+    x.title = "Temperature:Discharge",
+    y.title = "ln(CHLa) (\u03BCg/L)",
+    axis.title.size = 14,
+    point.col = c("#ED254E", "#0096FF"))
+
+ggsave(filename = "output/model1_regressionPlot.jpeg", device = "jpeg", dpi = 300)
+  
+```
+
+<br>
+
+```{r `regression plots by year_model1`, include = TRUE, fig.width=4, fig.height=4}
+#### **Chlorophyll A ~ Temperature/Discharge Ratio Plots by Year**
+plot_eachYear(data = df.model1, 
+                 x = "t_q", 
+                 formula = y ~ log(x), 
+                 method = "lm",
+                 reg.stats_ = reg.stats, 
+                 xlab = "Temperature:Discharge")
+
+```
+
+<br><br>
+
+#### Regression Statistics
+
+```{r `table: Regression stats_model1`, include = TRUE}
+# View in table
+reg.stats %>%
+  kable(align = "c", 
+        caption = "Regression statistics by year for ln(CHLAa) ~ ln(T:Q)") %>%
+  kable_paper() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")
+  )
+
+```
+
+<br><br>
+
+#### Model Performance and Residuals Plots
+
+```{r `model residuals and predicted values_model1`}
+
+model1_tq <- lm(ln_chla ~ log(t_q), data = df.model1)
+residuals_tq <- model1_tq$residuals
+predicted_vals_tq <- fitted(model1_tq)
+
+```
+
+<br>
+
+```{r `plot & table: bloom day prediction_model1`, fig.width=10.5, fig.height=5.5, include = TRUE, warning = FALSE}
+# CHLa TIME SERIES & MODEL ACCURACY PLOT
+# custom function (see 'functions.R' file)
+ plot_bloomday_predictions(data = df.model1,
+                           x = "t_q",
+                           method = "lm") 
+
+
+```
+
+<br><br>
+
+```{r `plot: residuals time series model1, fig.width=10.5, fig.height=4.5, warning=FALSE, include = TRUE}
+# Create df with residuals and dates
+df.residuals_tq <- as.data.frame(residuals_tq)
+colnames(df.residuals_tq)[1] <- "residuals"
+df.residuals_tq$date <- df.model1$date[as.numeric(rownames(df.residuals_tq))]
+
+# custom function
+plot.residuals_timeSeries(data = df.residuals_tq,
+                          title = NULL)
+
+
+```
+
+<br><br>
+
+```{r box-whisker plot_model1, fig.width=10.5, fig.height=5.5, warning = FALSE, include = TRUE}
+
+# -- This requires associating each residual with a specific date/year. 
+  ## -- Determine the date for each observation used in the T:Q model
+    indices <- which(!is.na(df.model1$ln_chla) & !is.na(df.model1$t_q))
+    tq_dates <- as.POSIXct(df.model1$date[indices])
+  ## -- Join dates to residuals vector
+    residuals_tq_date <- data.frame(residuals_tq, tq_dates)
+    jul_oct_Residuals <- residuals_tq_date[month(residuals_tq_date$tq_dates) %in% c(7:10), ]
+    
+    
+
+# Create a box-whisker plot
+ggplot(jul_oct_Residuals, aes(x = format(tq_dates, "%Y"), y = residuals_tq)) +
+  geom_boxplot() +
+  geom_hline(yintercept = 0, linetype = "solid", color = "salmon") +  # Add a horizontal line at y=0
+  theme_classic() +
+  theme(legend.position = "none",
+        plot.title = element_text(size = 16),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 11.5),
+        axis.text.y = element_text(size = 11.5),
+        axis.line = element_line(color = "grey"),
+        axis.title.x = element_text(size = 16, color = "grey20", margin = margin(t = 15)),
+        axis.title.y = element_text(size = 16, color = "grey20", margin = margin(r = 15))) +
+  labs(title = "CHLa ~ T:Q Box-and-Whisker Index Period Residuals, ",
+       x = "Year",
+       y = "Residuals")
+
+```
+
+<br><br>
+
+## Model 2: CHLa \~ Temperature/Discharge 4day Moving Avg. Ratio
+
+```{r `data preparation_model2`}
+## Subset date, SurfaceTemp, CHLa 
+df.model2 <- 
+  df.james[, c("date", "SurfaceTemp", "CHLa", "ln_chla", "Discharge", "period")]
+
+# Create field containing DOY for each observation in df.james
+df.model2 <- df.model2 %>%
+  mutate(yday = yday(date))
+
+
+# Calculate 4 day rolling avg for discharge 
+for (i in years_vec) {
+  # subset DOYs by year and assign to variable
+  DOY_vec <- df.model2$yday[year(df.model2$date) == i]
+  
+  # Calculate rolling average (`width` argument sets window width, i.e. number of days to calcualte average )
+  d <- 
+    zoo::rollapply(df.discharge[, as.character(i)], width = 4, FUN = mean, align = "right", fill = NA)
+
+  # Add discharge values to data set with temperature and chla values
+  df.model2$DischargeAvg[year(df.model2$date) == i] <- d[DOY_vec]
+}
+
+
+# Derive T/Qavg ratio and ln(CHLa)
+df.model2 <-
+  df.model2 %>%
+    mutate(t_q_avg = SurfaceTemp/DischargeAvg) %>%
+    mutate(ln_chla = log(CHLa)) %>%
+    select(-yday)
+
+# Create factor for use in visually distinguishing 2010-2018 plot points from those 2019 and beyond.
+df.model2$period <- NA
+
+for (i in seq_along(df.model2$date)) {
+  df.model2$period[i] <- ifelse(
+    year(df.model2$date[i]) %in% c(2010:2018), 
+    "2010-2018", 
+    paste0("2019-", as.character(max_yr)))
+}
+
+```
+
+<br>
+
+#### Regression Plots
+
+<br>
+
+```{r `derive regression stats_model2}
+# Create dataframes to hold regression statistics
+### For individual yr stats
+ reg.stats <- 
+  data.frame(Model.Year =  years_vec,
+             coefficient = as.numeric(NA),
+             coef.error = as.numeric(NA),
+             p.val = as.numeric(NA),
+             RSQR = as.numeric(NA)
+             )
+# All years df
+reg.stats2 <- 
+  data.frame(Model.Year =  "All years",
+             coefficient = as.numeric(NA),
+             coef.error = as.numeric(NA),
+             p.val = as.numeric(NA),
+             RSQR = as.numeric(NA)
+             )
+
+# custom functions (see 'functions.R' file)
+
+reg.stats <- regstat_eachyear(reg.df = reg.stats, 
+                              data = df.model2, 
+                              x = "t_q_avg")
+reg.stats2 <- regstat_combined(reg.df = reg.stats2, 
+                               data = df.model2, 
+                               x = "t_q_avg")
+
+reg.stats <- rbind(reg.stats2, reg.stats)
+
+```
+
+```{r `plot: regression plot all yrs combined_model2`, include = TRUE}
+# Plot for ln(CHLa) ~ T:Qavg, all years with best fit regression line
+# custom function (see 'functions.R' file)
+
+  plot_allYears(  
+    data = df.model2,
+    x = "t_q_avg",
+    y = "ln_chla",
+    formula = y ~ log(x),
+    method = "lm",
+    title = "Chlorophyll A ~ Temperature:Qavg",
+    x.title = expression("Temperature:Q"[avg]),
+    y.title = "ln(CHLa) (\u03BCg/L)",
+    point.col = c("#ED254E", "#0096FF"))
+
+
+```
+
+<br><br>
+
+```{r `plots: individual years_model2`, fig.width=4, fig.height=4, include = TRUE}
+#### Chlorophyll A ~ Temperature/Discharge Ratio Plots by Year
+# custom function (see 'functions.R' file)
+
+plot_eachYear(data = df.model2, 
+                 x = "t_q_avg", 
+                 formula = y ~ log(x), 
+                 method = "lm",
+                 reg.stats_ = reg.stats, 
+                 xlab = expression("Temperature:Q"[avg])
+              )
+
+```
+
+<br><br>
+
+#### Regression Statistics
+
+```{r `table: regression stats_model2, include = TRUE}
+
+reg.stats %>%
+  kable(align = "c", 
+        caption = "Regression statistics by year for ln(CHLAa) ~ ln(T/Qavg)") %>%
+  kable_paper() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")
+  )
+
+```
+
+<br><br>
+
+#### Model Performance and Residuals Time Series
+
+```{r `model residuals and predicted values_model2`}
+
+# Create a factor, "bloom_days", to indicate model prediction vs observed value
+model_tq_avg <- lm(ln_chla ~ log(t_q_avg), data = df.model2)
+residuals_tq_avg <- model_tq_avg$residuals
+predicted_values_tq_avg <- fitted(model_tq_avg)
+
+```
+
+```{r `plot & table: Bloom day prediction_model1`, fig.width=10.5, fig.height=5.5, include = TRUE, warning = FALSE}
+# CHLa TIME SERIES & MODEL ACCURACY PLOT.
+# custom function (see 'functions.R' file)
+ plot_bloomday_predictions(data = df.model2, 
+                           x = "t_q_avg",
+                           method = "lm") 
+```
+
+<br><br>
+
+```{r `plot: residuals time series_model2`, fig.width=10.5, fig.height=4.5, include = TRUE, warning=FALSE}
+
+# Create df with residuals and dates
+df.residuals_tq_avg <- as.data.frame(residuals_tq_avg)
+colnames(df.residuals_tq_avg)[1] <- "residuals"
+df.residuals_tq_avg$date <- df.model2$date[as.numeric(rownames(df.residuals_tq_avg))]
+
+
+# custom function (see 'functions.R' file)
+plot.residuals_timeSeries(data = df.residuals_tq_avg,
+                          title = NULL)
+
+```
+
+<br><br>
+
+## Model 3: CHLa \~ Temperature/Inverse Special Conductivty Ratio
+
+```{r `data preparation_model3`}
+## Subset date, SurfaceTemp, CHLa 
+df.model3 <- df.james[, c("date", "SurfaceTemp", "CHLa", "TtoCond")]
+
+# Derive ln(CHLa)
+df.model3$ln_chla <- log(df.model3$CHLa)
+
+# Create factor for use in visually distinguishing 2010-2018 plot points from those 2019 and beyond.
+df.model3$period <- NA
+
+for (i in seq_along(df.model3$date)) {
+  df.model3$period[i] <- ifelse(
+    year(df.model3$date[i]) %in% c(2010:2018), 
+    "2010-2018", 
+    paste0("2019-", as.character(max_yr)))
+}
+
+```
+
+<br>
+
+#### Regression Plots
+
+```{r `derive Regression Stat_model3}
+# Create dfs to contain regression stats
+ reg.stats <- 
+  data.frame(Model.Year =  years_vec,
+             coefficient = as.numeric(NA),
+             coef.error = as.numeric(NA),
+             p.val = as.numeric(NA),
+             RSQR = as.numeric(NA)
+             )
+
+reg.stats2 <- 
+  data.frame(Model.Year =  "All years",
+             coefficient = as.numeric(NA),
+             coef.error = as.numeric(NA),
+             p.val = as.numeric(NA),
+             RSQR = as.numeric(NA)
+             )
+
+# Custom functions to generate stats
+reg.stats <- regstat_eachyear(reg.stats, data = df.model3, x = "TtoCond")
+reg.stats2 <- regstat_combined(reg.stats2, data = df.model3, x = "TtoCond")
+
+
+# Bind together 'all years' and individual year regression statistics 
+reg.stats <- rbind(reg.stats2, reg.stats)
+
+```
+
+<br>
+
+```{r `plot: regression plot all years combined_model3`, include = TRUE}
+# Plot for ln(CHLa) ~ TtoCond, all years with best fit regression line.
+# custom function (see 'functions.R' file)
+
+  plot_allYears(  
+    data = df.model3,
+    x = "TtoCond",
+    y = "ln_chla",
+    formula = y ~ log(x),
+    method = "lm",
+    title = "CHLa~ Temperature/Inverse Special Conductivity Ratio",
+    x.title = "Temperature:InvSpCond",
+    y.title = "ln(CHLa) (\u03BCg/L)",
+    point.col = c("#ED254E", "#0096FF"))
+
+
+```
+
+<br>
+
+```{r `plots: individual years`, fig.width=4, fig.height=4, include = TRUE}
+#### Chlorophyll A ~ Temperature/Inverse Special Conductivity Ratio, by Year
+# custom function (see 'functions.R' file)
+
+plot_eachYear(data = df.model3, 
+                 x = "TtoCond", 
+                 formula = y ~ log(x), 
+                 method = "lm",
+                 reg.stats_ = reg.stats, 
+                 xlab = "Temperature:InvSpCond")
+
+```
+
+<br><br>
+
+#### Regression Statistics
+
+```{r `table: regression stats_model3`, include = TRUE}
+  
+# View in table
+reg.stats %>%
+  kable(align = "c", 
+        caption = "Regression statistics by year for ln(CHLAa) ~ ln(T:InvSpCond)") %>%
+  kable_paper() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")
+  )
+
+```
+
+<br><br>
+
+#### Model Performance and Residuals Time Series
+
+```{r `model residuals and predicted values_model3`}
+# Create a factor, "bloom_days", to indicate model prediction vs observed value
+model_tcond <- lm(ln_chla ~ log(TtoCond), data = df.model3)
+residuals_tcond <- model_tcond$residuals
+predicted_values_tcond <- fitted(model_tcond)
+
+```
+
+```{r `plot & table: bloom day prediction_model3`, fig.width=10.5, fig.height=5.5, include = TRUE, warning = FALSE}
+# CHLa TIME SERIES & MODEL ACCURACY PLOT.
+# custom function (see 'functions.R' file)
+ plot_bloomday_predictions(data = df.model3, 
+                           x = "TtoCond",
+                           method = "lm")   # Custom function
+
+  
+
+```
+
+<br><br>
+
+```{r `plot: residuals time series_model3, fig.width=10.5, fig.height=4.5, include = TRUE, warning=FALSE}
+
+# Create df with residuals and dates
+df.residuals_tcond <- as.data.frame(residuals_tcond)
+colnames(df.residuals_tcond)[1] <- "residuals"
+df.residuals_tcond$date <- df.model3$date[as.numeric(rownames(df.residuals_tcond))]
+
+# custom function (see 'functions.R' file)
+plot.residuals_timeSeries(data = df.residuals_tcond, 
+                          title = NULL) 
+
+
+```
+
+<br><br>
+
+## Model 4: Nonlinear Tangential Model
+
+<br>
+
+#### $$CHLa \sim CHLamax \times \tanh\left(\frac{\alpha \times T}{CHLamax}\right)$$
+
+```{r `modeling and predictions_model4`}
+# Recycle df.model1 dataframe, as it already has t_q values.
+df_tang <- df.model1[, -9]
+
+model_tang <- nls(CHLa ~ CHLamax * tanh((alpha * t_q)/CHLamax), 
+             data = df_tang, 
+             start = c(alpha = 50, CHLamax = 10),
+             control = nls.control(maxiter = 2000))
+
+mod_tang_sum <- summary(model_tang)
+
+
+mod_tang_predictions <- fitted(model_tang)
+
+
+obs_fit <- data.frame(observed = df_tang$CHLa[!is.na(df_tang$CHLa)], 
+                      predicted = fitted(model_tang),
+                      date = df_tang$date[!is.na(df_tang$CHLa)])
+
+```
+
+<br>
+
+```{r `scatterplots w/ model fit_model4`, include = TRUE}
+# Plot for ln(CHLa) ~ T:Qavg, all years
+ plot_allYears <- ggplot(df_tang, aes(x = t_q, y = CHLa)) +
+  geom_point(aes(col=period), alpha = 0.55) +
+  geom_smooth(method = "nls", formula = y ~ CHLamax * tanh((alpha * x)/CHLamax),
+              se = FALSE, linetype = "solid", color = "grey45", alpha = 0.5,
+              method.args = list(start = coef(model_tang))) +
+  labs(title = NULL,
+           x = "Temperature:Discharge",
+           y = "CHLa (\u03BCg/L)") +
+  scale_color_manual(values = c("#ED254E", "#0096FF"), 
+                         name = NULL) +
+  theme(title = element_text(size = 8)) +
+  theme_minimal()
+
+suppressWarnings(
+  print(plot_allYears)
+  )
+
+
+```
+
+<br>
+
+```{r `derive regression stats_model4`}
+
+## LINEAR REGRESSION STATISTICS 
+ reg.stats_tang <- 
+  data.frame(Model.Year =  years_vec,
+             alpha.coef = as.numeric(NA),
+             alpha.p.val = as.numeric(NA),
+             alpha.se = as.numeric(NA),
+             CHLamax.coef = as.numeric(NA),
+             CHLamax.pval = as.numeric(NA),
+             CHLamax.se = as.numeric(NA) )
+
+# Run the model for each year
+for (i in seq_along(years_vec)) {
+  data_subset <- 
+    df_tang[year(df_tang$date) == years_vec[i], ]
+  
+  res_tang <- 
+    summary(
+      nls(CHLa ~ CHLamax * tanh((alpha * t_q)/CHLamax), 
+          data = data_subset, 
+          start = c(alpha = 70, CHLamax = 20),
+          control = nls.control(maxiter = 1000) )
+    )
+  
+  reg.stats_tang$alpha.coef[i] <- round(res_tang$coefficients[1,1], 4)
+   reg.stats_tang$alpha.p.val[i] <- round(res_tang$coefficients[1,4], 4)
+    reg.stats_tang$alpha.se[i] <- round(res_tang$coefficients[1,2] ,4)
+     reg.stats_tang$CHLamax.coef[i] <- round(res_tang$coefficients[2,1], 4)
+      reg.stats_tang$CHLamax.pval[i] <- round(res_tang$coefficients[2,4], 4)
+       reg.stats_tang$CHLamax.se[i] <- round(res_tang$coefficients[2,2], 4)
+
+}
+  
+# Add regression stats for all years -- Repeat same as above without for loop and create a 1 row data frame.
+reg.stats_tang2 <- 
+  data.frame(Model.Year =  "All years",
+             alpha.coef = as.numeric(NA),
+             alpha.p.val = as.numeric(NA),
+             alpha.se = as.numeric(NA),
+             CHLamax.coef = as.numeric(NA),
+             CHLamax.pval = as.numeric(NA),
+             CHLamax.se = as.numeric(NA) )
+
+ res_tang <- 
+    summary(
+      nls(CHLa ~ CHLamax * tanh((alpha * t_q)/CHLamax), 
+          data = df_tang, 
+          start = c(alpha = 70, CHLamax = 10),
+          control = nls.control(maxiter = 1000) )
+    )
+  
+  
+  reg.stats_tang2$alpha.coef <- round(res_tang$coefficients[1,1], 4)
+   reg.stats_tang2$alpha.p.val <- round(res_tang$coefficients[1,4], 4)
+    reg.stats_tang2$alpha.se <- round(res_tang$coefficients[1,2] ,4)
+     reg.stats_tang2$CHLamax.coef <- round(res_tang$coefficients[2,1], 4)
+      reg.stats_tang2$CHLamax.pval <- round(res_tang$coefficients[2,4], 4)
+       reg.stats_tang2$CHLamax.se <- round(res_tang$coefficients[2,2], 4)
+
+# Bind together 'all years' and individual year regression statistics 
+reg.stats_tang <- rbind(reg.stats_tang2, reg.stats_tang)
+
+```
+
+```{r `plots: individual years_model4`, fig.width=4, fig.height=4, include = TRUE}
+
+for (yr in years_vec) {
+  plot <- 
+    ggplot(df_tang, aes(x = t_q, y = CHLa)) +
+      geom_smooth(data = df_tang[year(df_tang$date) == yr,],
+                  method = "nls", 
+                  formula = y ~ CHLamax * tanh((alpha * x)/CHLamax),
+                  se = FALSE, linetype = "solid", color = "grey45", alpha = 0.75,
+                  method.args = list(start = coef(model_tang))) +
+      geom_point(data = df_tang[year(df_tang$date) == yr,],
+                 color = ifelse(yr < 2019, "#ED254E", "#0096FF"), 
+                 alpha = .6) +
+      labs(title = yr,
+           x = "Temperature:Discharge",
+           y = "CHLa (\u03BCg/L)") +
+      theme(title = element_text(size = 8)) +
+      theme_minimal()
+  
+  suppressWarnings(
+    print(plot)
+  )
+}
+
+
+```
+
+<br>
+
+```{r `residuals vs predicted_model4`, include = TRUE}
+ggplot(obs_fit, aes(x = predicted, y = residuals(model_tang) ) ) +
+  geom_point(alpha = .65) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(x = "Predicted Values", y = "Residuals", title = "Residuals vs. Predicted") + 
+  theme_classic()
+
+
+```
+
+<br><br>
+
+#### Parameter Estimates
+
+```{r `table: model parameter estimates_model4`, include = TRUE}
+reg.stats_tang %>%
+  kable(align = "c", 
+        caption = "CHLa ~ CHLamax * tanh((alpha * t_q)/CHLamax) Model Statistics, by Year") %>%
+  kable_paper() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")
+  )
+
+```
+
+<br><br>
+
+#### Model Performance and Residuals Time Series
+
+<br>
+
+```{r `plot: residuals time series_model4, fig.width=10.5, fig.height=4.5, include = TRUE, warning=FALSE}
+
+# Create df with residuals and dates
+df.residuals_tang <- as.data.frame(residuals(model_tang))
+colnames(df.residuals_tang)[1] <- "residuals"
+df.residuals_tang$date <- df_tang$date[as.numeric(rownames(df.residuals_tang))]
+
+# custom function (see 'functions.R' file)
+plot.residuals_timeSeries(data = df.residuals_tang,
+                          title = NULL)
+
+```
+
+<br>
+
+```{r `plot & table: bloom day prediction_model4`, fig.width=10.5, fig.height=5.5, include = TRUE, warning = FALSE}
+## TIME SERIES PLOT & MODEL ACCURACY TABLE
+# custom function (see 'functions.R' file)
+plot_bloomday_predictions(data = df_tang,
+                          x = "t_q",
+                          method = "nls")
+
+```
