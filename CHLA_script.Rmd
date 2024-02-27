@@ -707,7 +707,6 @@ df.residuals_tq_avg$date <- df.model2$date[as.numeric(rownames(df.residuals_tq_a
 # custom function (see 'functions.R' file)
 plot.residuals_timeSeries(data = df.residuals_tq_avg,
                           title = NULL)
-
 ```
 
 <br><br>
@@ -782,7 +781,6 @@ reg.stats <- rbind(reg.stats2, reg.stats)
     y.title = "ln(CHLa) (\u03BCg/L)",
     point.col = c("#ED254E", "#0096FF"))
 
-
 ```
 
 <br>
@@ -834,15 +832,11 @@ predicted_values_tcond <- fitted(model_tcond)
  plot_bloomday_predictions(data = df.model3, 
                            x = "TtoCond",
                            method = "lm")   # Custom function
-
-  
-
 ```
 
 <br><br>
 
 ```{r `plot: residuals time series_model3, fig.width=10.5, fig.height=4.5, include = TRUE, warning=FALSE}
-
 # Create df with residuals and dates
 df.residuals_tcond <- as.data.frame(residuals_tcond)
 colnames(df.residuals_tcond)[1] <- "residuals"
@@ -851,7 +845,6 @@ df.residuals_tcond$date <- df.model3$date[as.numeric(rownames(df.residuals_tcond
 # custom function (see 'functions.R' file)
 plot.residuals_timeSeries(data = df.residuals_tcond, 
                           title = NULL) 
-
 
 ```
 
@@ -881,7 +874,6 @@ mod_tang_predictions <- fitted(model_tang)
 obs_fit <- data.frame(observed = df_tang$CHLa[!is.na(df_tang$CHLa)], 
                       predicted = fitted(model_tang),
                       date = df_tang$date[!is.na(df_tang$CHLa)])
-
 ```
 
 <br>
@@ -904,14 +896,11 @@ obs_fit <- data.frame(observed = df_tang$CHLa[!is.na(df_tang$CHLa)],
 suppressWarnings(
   print(plot_allYears)
   )
-
-
 ```
 
 <br>
 
 ```{r `derive regression stats_model4`}
-
 ## LINEAR REGRESSION STATISTICS 
  reg.stats_tang <- 
   data.frame(Model.Year =  years_vec,
