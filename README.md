@@ -1,7 +1,7 @@
 # README: PREDICTING ALGAL BLOOMS AS A FUNCTION OF TEMPERATURE-BASED RATIOS
 
 ![Predictive success of ln(CHLa) ~ ln(temperature:discharge) model](Img/plot.png)
-<img src="Img/plot.png" width="1008" height="528">
+<img src="Img/plot.png" width="896" height="469">
 
 ## PROJECT OVERVIEW
 
