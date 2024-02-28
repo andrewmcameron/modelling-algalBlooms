@@ -1,5 +1,7 @@
 # README: PREDICTING ALGAL BLOOMS AS A FUNCTION OF TEMPERATURE-BASED RATIOS
 
+![Predictive success of ln(CHLa) ~ ln(temperature:discharge) model](Img/plot.png)
+
 ## PROJECT OVERVIEW
 
 This program takes long-term riverine/estuarine water monitoring data as input and models chlorophyll-a (CHLa) concentration using three logarithmic models and one nonlinear, tangential model:
@@ -103,7 +105,7 @@ Once the script has been successfully executed, there are a few ways that plots 
 
 #### Export From Plot Window
 
-Locate the plot in the RStudio Plots pane, using the left and right arrows to move between plots.
+Locate the plot in the RStudio Plots pane, using the left and right arrows to move between plots. Use the 'Export' button above the plot.
 
 ![](Img/export.png)
 
