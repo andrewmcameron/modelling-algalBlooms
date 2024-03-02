@@ -13,7 +13,7 @@ This program takes long-term riverine/estuarine water monitoring data as input a
 - CHLa ~ CHLamax * tanh((alpha * T:Q)/CHLamax)
 ```
 
-The knitted HTML output contains tables with summary statistics for the all years in the data set; regression statistics for all years and also individual years, by model; model plots with best fit line; model specific time series plots; and time series plots for CHLa and dissolved organic nitrogen.
+The knitted HTML output contains tables with summary statistics for the all years in the data set; regression statistics for all years combined, as well as individual years, by model; model plots with best fit line; model-specific time series plots; and time series plots for CHLa and dissolved organic nitrogen.
 
 The script is designed to dynamically adapt to changes in the dataset, accommodating new data from subsequent years without requiring manual updates to its structure or content.
 
