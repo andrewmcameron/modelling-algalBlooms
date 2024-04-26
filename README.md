@@ -4,16 +4,20 @@
 
 ## PROJECT OVERVIEW
 
-This program takes long-term riverine/estuarine water monitoring data as input and models chlorophyll-a (CHLa) concentration using three logarithmic models and one nonlinear, tangential model:
+This program is designed to analyze water quality over time in rivers and estuaries, focusing on the concentration of chlorophyll-a (CHLa), a key indicator of aquatic health. It uses data from long-term water monitoring projects and applies several mathematical models, both linear and non-linear, to predict CHLa levels based on factors like water temperature and flow rates. 
 
-```         
-- ln(CHLa) ~ ln(temperature:discharge)
-- ln(CHLa) ~ ln(temperature: discharge 4-day rolling average)
-- ln(CHLa) ~ ln(temperature:inverse specific conductivity)
-- CHLa ~ CHLamax * tanh((alpha * T:Q)/CHLamax)
-```
+Logarithmic Models: These models use natural logarithms to examine how changes in water temperature combined with changes in water flow affect CHLa concentration. Here, we try three models using different predictor variables derived as water temperature-besad ratios:
 
-The knitted HTML output contains tables with summary statistics for the all years in the data set; regression statistics for all years combined, as well as individual years, by model; model plots with best fit line; model-specific time series plots; and time series plots for CHLa and dissolved organic nitrogen.
+        
+        - ln(CHLa) ~ ln(temperature:discharge)
+        - ln(CHLa) ~ ln(temperature:discharge 4-day rolling average)
+        - ln(CHLa) ~ ln(temperature:inverse specific conductivity)
+        
+Nonlinear, Tangential Model: This more complex model uses a mathematical function called "tanh" (hyperbolic tangent) to predict CHLa levels. It considers how temperature and discharge influence CHLa up to a maximum saturation point, beyond which changes have a progressively smaller effect.
+
+        - CHLa ~ CHLamax * tanh((alpha * T:Q)/CHLamax)
+        
+The program outputs its findings in an easy-to-read HTML format, which includes summary statistic tables for the all years in the data set; for each model, regression statistics for all years combined, as well as individual statistics by year; model regression plots with best fit line; model-specific time series plots; and time series plots for CHLa and dissolved organic nitrogen.
 
 The script is designed to dynamically adapt to changes in the dataset, accommodating new data from subsequent years without requiring manual updates to its structure or content.
 
